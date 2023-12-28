@@ -10,7 +10,8 @@ default_colors = {
     "background": "white",
     "wall": "black",
     "robot": "orange",
-    "goal": "red"
+    "goal": "red",
+    "tree": "green"
 }
 
 class Display:
@@ -24,13 +25,17 @@ class Display:
         self.wall_color = rgb[colorset["wall"]]
         self.robot_color = rgb[colorset["robot"]]
         self.goal_color = rgb[colorset["goal"]]
+        self.tree_color = rgb[colorset["tree"]]
 
         ## Sizes
         self.robot_size = 30
         self.goal_size = 30
 
+        self.tree_mask = None
 
-    def __call__(self, walls=None, robot=None, goal=None):
+
+
+    def __call__(self, walls=None, robot=None, goal=None, tree=None, new_tree=False):
         img = np.zeros(self.shape, dtype=np.uint8)
 
         img[...,:] = self.background_color ## Background drawing
@@ -43,8 +48,22 @@ class Display:
         if goal is not None:
             img[goal[1]-self.goal_size//2:goal[1]+self.goal_size//2+1, goal[0]-self.goal_size//2:goal[0]+self.goal_size//2+1] = self.goal_color
 
+        if tree is not None:
+            if new_tree:
+                self.tree_mask = self.draw_tree(tree)
+            img[self.tree_mask[:,0], self.tree_mask[:,1]] = self.tree_color
+
         return img
     
+    def draw_tree(self, root, res_seg=200):
+        tree = np.array(root.draw_edges())
+        T = np.linspace(0,1, res_seg).reshape((1,-1,1))
+        inter = T * tree[:,0,:].reshape((-1, 1, 2)) + (1-T) * tree[:,1,:].reshape((-1, 1, 2))
+        inter = inter.reshape((-1, 2))
+        inter = np.unique(np.int32(inter), axis=0)#[:,::-1]
+        return inter
+
+
     def get_background_color(self):
         return self.background_color
 

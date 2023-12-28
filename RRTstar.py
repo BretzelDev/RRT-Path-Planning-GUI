@@ -28,9 +28,47 @@ class Node:
     def print(self):
         string =  str(self) + " --> "+ ("==".join([child.print() for child in self.children]))
         return string
+    
+    def nearest(self, z):
+        if self.children:
+            return min([[self, self.distance(z)]] + [child.nearest(z) for child in self.children], key = lambda x: x[1])
+        return [self, self.distance(z)]
+    
+    def near(self, z, n, d=2):
+        gamma = 10
+        l = gamma * (np.log(n)/n)**d
+        print("l = ", l)
+        result = [self] * int(self.distance(z) <= l)
+        for child in self.children:
+            result += child.near(z, n, d)
+        return result
+        # return [self] * int(self.distance(z) <= l) + [child.near(z, n, d) for child in self.children] 
+
+
+    def distance(self, z):
+        return np.sum((self.z[:2]-z[:2])**2)
+    
+    def draw_edges(self, depth=0):
+        edges = []
+        for child in self.children:
+            edges.append([self.z[:2], child.z[:2]])
+            edges += child.draw_edges(depth+1)
+        return edges
 
          
     
+def generate_random_tree(limits, N=100):
+    walls = np.random.random((11, 11)).astype(bool)
+    rsg = RandomStateGenerator(limits)
+    root = Tree(rsg(), walls)
+    for i in range(N-1):
+        z_new = rsg()
+        nearest = root.nearest(z_new)[0]
+        nearest.insert_node(Node(z_new, walls, nearest))
+
+    return root
+
+
 
 class Tree(Node):
     def __init__(self, z, world):
@@ -69,6 +107,8 @@ class RRTStar:
         self.root = Tree(z_init, self.world)
 
 
+    
+
         
 
 
@@ -92,7 +132,44 @@ if __name__ == "__main__":
     root.insert_node(Node(rand_z, walls))
 
 
-    print(root.children)
+    rand_z = rsg()
+    root.insert_node(Node(rand_z, walls))
+
+
+    rand_z = rsg()
+    root.insert_node(Node(rand_z, walls))
+
+    rand_z = rsg()
+
+    
+    nearest = root.nearest(rand_z)
+    print("nearest : ", nearest)
+
+
+    near  = root.near(rand_z, 4, 2)
+    print("near : ", near)
+    # print(nearest[0])
+    # print(nearest[1])
+
+    # print(root.children)
+
+    limits = [[0,1200],
+              [0,800]]
+    root = generate_random_tree(limits)
+
+    draw = np.array(root.draw_edges())
+    T = np.linspace(0,1, 100).reshape((1,-1,1))
+
+    inter = T * draw[:,0,:].reshape((-1, 1, 2)) + (1-T) * draw[:,1,:].reshape((-1, 1, 2))
+    inter = inter.reshape((-1, 2))
+    inter = np.unique(np.int32(inter), axis=0)
+
+
+    print(inter.shape)
+
+
+
+    print(draw.shape)
 
     print(root.print())
 

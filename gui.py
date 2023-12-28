@@ -5,6 +5,7 @@ from tkinter import filedialog
 from PIL import Image, ImageTk
 import numpy as np
 from display import Display
+from RRTstar import *
 
 
 
@@ -25,6 +26,7 @@ class Gui:
         self.walls = np.zeros((self.canvas_height, self.canvas_width), dtype=bool) ##En attendant le path planner
         self.robot = None
         self.goal = None
+        self.tree = None
 
         ## Display object
         self.display = Display(height=self.canvas_height, width=self.canvas_width)
@@ -62,8 +64,8 @@ class Gui:
         ## Commandes clavier / souris
         self.setup_commands()
 
-    def draw_canvas(self):
-        self.image_data = self.display(self.walls, self.robot, self.goal)
+    def draw_canvas(self, new_tree=False):
+        self.image_data = self.display(self.walls, self.robot, self.goal, self.tree, new_tree=new_tree)
 
     def setup_commands(self):
         self.canvas.bind("<Button-1>", self.click_on_canvas) #<B1-Motion>
@@ -148,8 +150,9 @@ class Gui:
 
             
     def add_obstacle(self, x, y):
-        square_size = self.circle_radius
+        square_size = int(self.circle_radius)
         self.log.set(f"## Add obstacle en {x,y}")
+        print(square_size)
         self.walls[y-square_size//2:y+square_size//2+1, x-square_size//2:x+square_size//2+1] = True
         self.draw_canvas()
         self.update_canvas_image()
@@ -181,6 +184,9 @@ class Gui:
 
     def compute_path(self):
         print("## Compute path")
+        self.tree = generate_random_tree([[0,self.canvas_height],[0, self.canvas_width]], 1000)
+        self.draw_canvas(new_tree=True)
+        self.update_canvas_image()
         
     def reset(self):
         print("## Reset")
