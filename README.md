@@ -8,6 +8,13 @@ Small project aiming to develop a simple interface in Python using Tkinter to ea
 - Saving the current canvas as a PNG image
 - Settings for the display (colors)
 
+## Installation
+Although there isn't much to do play around with for now, you can clone the repository and see for yourself by launching the interface script:
+
+```bash
+python3 gui.py
+```
+
 ## State of the project
 For now I am mainly focusing on building the interface the user can use to place obstacles, the robot and its destination goal on a map. No logic is yet implemented when it comes to path planning, the interface prototype is no more than a terrible Microsoft Paint ripoff.
 
