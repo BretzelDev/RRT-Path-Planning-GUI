@@ -152,7 +152,6 @@ class Gui:
     def add_obstacle(self, x, y):
         square_size = int(self.circle_radius)
         self.log.set(f"## Add obstacle en {x,y}")
-        print(square_size)
         self.walls[y-square_size//2:y+square_size//2+1, x-square_size//2:x+square_size//2+1] = True
         self.draw_canvas()
         self.update_canvas_image()
@@ -184,7 +183,8 @@ class Gui:
 
     def compute_path(self):
         print("## Compute path")
-        self.tree = generate_random_tree([[0,self.canvas_height],[0, self.canvas_width]], 1000)
+        # self.tree = generate_random_tree([[0,self.canvas_height],[0, self.canvas_width]], 1000)
+        self.tree = generate_random_tree_array([[0,self.canvas_height],[0, self.canvas_width]], 1000)
         self.draw_canvas(new_tree=True)
         self.update_canvas_image()
         

@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib
+from RRTstar import unpack_tree_array
 
 rgb = {}
 for name, hex in matplotlib.colors.cnames.items():
@@ -56,7 +57,7 @@ class Display:
         return img
     
     def draw_tree(self, root, res_seg=200):
-        tree = np.array(root.draw_edges())
+        tree = unpack_tree_array(root)#np.array(root.draw_edges())
         T = np.linspace(0,1, res_seg).reshape((1,-1,1))
         inter = T * tree[:,0,:].reshape((-1, 1, 2)) + (1-T) * tree[:,1,:].reshape((-1, 1, 2))
         inter = inter.reshape((-1, 2))

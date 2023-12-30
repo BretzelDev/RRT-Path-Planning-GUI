@@ -37,7 +37,6 @@ class Node:
     def near(self, z, n, d=2):
         gamma = 10
         l = gamma * (np.log(n)/n)**d
-        print("l = ", l)
         result = [self] * int(self.distance(z) <= l)
         for child in self.children:
             result += child.near(z, n, d)
@@ -68,6 +67,25 @@ def generate_random_tree(limits, N=100):
 
     return root
 
+def generate_random_tree_array(limits, N=100):
+    rsg = RandomStateGenerator(limits)
+    root = TreeArray(limits)
+    for i in range(N-1):
+        z_new = rsg()
+        nearest = root.nearest(z_new)
+        root.append_state(root.create_row(nearest, z_new))
+
+    return root
+        
+def unpack_tree_array(root):
+    N, D = root.array.shape
+    
+    links = np.zeros((N-1, 2, D-1))
+    for i in range(1, N):
+        links[i-1, 0] = root.array[i,1:]
+        links[i-1,1] = root.array[int(root.array[i,0]), 1:]
+
+    return links
 
 
 class Tree(Node):
@@ -106,6 +124,30 @@ class RRTStar:
     def init_tree(self, z_init):
         self.root = Tree(z_init, self.world)
 
+
+    
+
+class TreeArray:
+    def __init__(self, limits):
+        self.limits = limits
+        self.rsg = RandomStateGenerator(limits)
+        self.array = np.array([self.create_row(0, self.rsg())])
+        
+    def nearest(self, z):
+        return np.argmin(np.sum((self.array[:,1:3] - z)**2, axis=1))
+    
+    def neighborhood(self, z, n, d=2):
+        gamma = 10
+        l = gamma * (np.log(n)/n)**d
+        return np.argwhere(np.sum((self.array[:,1:3] - z)**2, axis=1) <= l)
+
+    def append_state(self, row):
+        self.array = np.vstack((self.array, row))
+
+    def create_row(self, parent, z):
+        return np.hstack(([parent], z))
+    
+    
 
     
 
@@ -168,10 +210,25 @@ if __name__ == "__main__":
     print(inter.shape)
 
 
-
+    print("##### draw")
     print(draw.shape)
 
-    print(root.print())
+    tree = TreeArray(limits)
+    
+    z = rsg()
+    print(tree.nearest(z))
+
+    # print(root.print())
+    print(tree.array)
+
+    print(" TEST ARRAY")
+
+    tree = generate_random_tree_array(limits)
+
+    edges = unpack_tree_array(tree)
+    print(edges)
+    print(edges.shape)
+
 
     
 
