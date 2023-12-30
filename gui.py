@@ -6,6 +6,7 @@ from PIL import Image, ImageTk
 import numpy as np
 from display import Display
 from RRTstar import *
+from time import time
 
 
 
@@ -183,10 +184,13 @@ class Gui:
 
     def compute_path(self):
         print("## Compute path")
+        start_time = time()
         # self.tree = generate_random_tree([[0,self.canvas_height],[0, self.canvas_width]], 1000)
-        self.tree = generate_random_tree_array([[0,self.canvas_height],[0, self.canvas_width]], 1000)
+        self.tree = generate_random_tree_array([[0,self.canvas_height],[0, self.canvas_width]], 10000)
         self.draw_canvas(new_tree=True)
         self.update_canvas_image()
+        timelength = time() - start_time
+        print(f"Tree generated in {timelength:.3f}")
         
     def reset(self):
         print("## Reset")

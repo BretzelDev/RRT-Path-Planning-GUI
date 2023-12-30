@@ -1,5 +1,5 @@
 import numpy as np
-
+import threading
 class Node:
     def __init__(self, z, world, parent = None):
         self.z = z ## State vector
@@ -87,6 +87,37 @@ def unpack_tree_array(root):
 
     return links
 
+def unpack_tree_array_parallel(root):
+    N, D = root.array.shape
+
+    # Split the range into two halves
+    midpoint = N // 2
+
+    # Shared data structure to store the results
+    links = np.zeros((N-1, 2, D-1))
+
+    # Helper function to process each half
+    def process_half(start, end):
+        for i in range(start, end):
+            links[i-1, 0] = root.array[i, 1:]
+            links[i-1, 1] = root.array[int(root.array[i, 0]), 1:]
+
+    # Create two threads, each responsible for one half of the array
+    thread1 = threading.Thread(target=process_half, args=(1, N//3))
+    thread2 = threading.Thread(target=process_half, args=(N//3, 2*N//3))
+    thread3 = threading.Thread(target=process_half, args=(2*N//3, N))
+
+    # Start the threads
+    thread1.start()
+    thread2.start()
+    thread3.start()
+
+    # Wait for both threads to finish
+    thread1.join()
+    thread2.join()
+    thread2.join()
+
+    return links
 
 class Tree(Node):
     def __init__(self, z, world):
