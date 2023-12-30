@@ -22,6 +22,11 @@ class Gui:
         self.circle_radius = 20
         self.circle_id = None
 
+        # Path planning properties
+        self.tree_node_number = 1000
+        self.tree_number_string = StringVar(value = f"Nb of nodes in tree : {self.tree_node_number}")
+
+
         ## Path planner object
         self.path_planner = path_planner
         self.walls = np.zeros((self.canvas_height, self.canvas_width), dtype=bool) ##En attendant le path planner
@@ -110,6 +115,10 @@ class Gui:
         cursor_size_selector = ttk.Scale(self.side_panel, orient="horizontal", from_=0, to=30, command=lambda event: self.change_cursor_size(cursor_size_selector.get()), style='Tick.TScale')
         cursor_size_selector.set(self.circle_radius)
 
+        tree_number_label = Label(self.side_panel, textvariable=self.tree_number_string)
+        tree_number_selector = ttk.Scale(self.side_panel, orient="horizontal", from_=10, to=10000, command=lambda event: self.change_tree_number(tree_number_selector.get()), style='Tick.TScale')
+        tree_number_selector.set(self.tree_node_number)
+
         place_wall_button = ttk.Radiobutton(self.side_panel, text="Wall", variable=self.place_robot_var, value="wall", command=None)
         place_robot_button = ttk.Radiobutton(self.side_panel, text="Robot", variable=self.place_robot_var, value="robot", command=None)
         place_goal_button = ttk.Radiobutton(self.side_panel, text="Goal", variable=self.place_robot_var, value="goal", command=None)
@@ -123,7 +132,9 @@ class Gui:
                             [cursor_size_label],
                             [cursor_size_selector],
                             [place_wall_button, place_robot_button],
-                            [place_goal_button]
+                            [place_goal_button],
+                            [tree_number_label],
+                            [tree_number_selector]
                             ]
         
         ## Widgets placement
@@ -186,7 +197,7 @@ class Gui:
         print("## Compute path")
         start_time = time()
         # self.tree = generate_random_tree([[0,self.canvas_height],[0, self.canvas_width]], 1000)
-        self.tree = generate_random_tree_array([[0,self.canvas_height],[0, self.canvas_width]], 10000)
+        self.tree = generate_random_tree_array([[0,self.canvas_height],[0, self.canvas_width]], self.tree_node_number)
         self.draw_canvas(new_tree=True)
         self.update_canvas_image()
         timelength = time() - start_time
@@ -257,6 +268,10 @@ class Gui:
                 for col in range(len(matrix[row])):
                     widget = matrix[row][col]
                     widget.grid(row=row, column=col, columnspan=1)
+
+    def change_tree_number(self, value):
+        self.tree_node_number = int(value)
+        self.tree_number_string.set(f"Nb of nodes in tree : {self.tree_node_number}")
 
 
     
