@@ -79,11 +79,13 @@ def generate_random_tree_array(limits, N=100):
         
 def unpack_tree_array(root):
     N, D = root.array.shape
+
+    print("## " ,N, D)
     
-    links = np.zeros((N-1, 2, D-1))
+    links = np.zeros((N-1, 2, D-2))
     for i in range(1, N):
-        links[i-1, 0] = root.array[i,1:]
-        links[i-1,1] = root.array[int(root.array[i,0]), 1:]
+        links[i-1, 0] = root.array[i,2:]
+        links[i-1,1] = root.array[int(root.array[i,0]), 2:]
 
     return links
 
@@ -144,42 +146,118 @@ class RandomStateGenerator:
         assert (self.limits[:,1] > self.limits[:,0]).all()
 
 
+class TreeArray:
+    def __init__(self, z_init):
+        # self.limits = limits
+        # self.rsg = RandomStateGenerator(limits)
+        self.array = np.array([self.create_row(0, z_init, cost=0)])
+        
+    def nearest(self, z):
+        distances = np.sum((self.array[:,2:4] - z)**2, axis=1)
+        index = np.argmin(distances)
+        return index, distances[index]
+    
+    def neighborhood(self, z, d=2):
+        gamma = 10
+        n = self.array.shape[0]
+        l = gamma * (np.log(n)/n)**d
+        l = np.inf
+        distances = np.sum((self.array[:,2:4] - z)**2, axis=1)
+        z_nearest_index = np.argmin(distances)
+        z_nearest_distance = distances[z_nearest_index]
+        index = np.argwhere(distances <= l)
+        return index, distances[index], z_nearest_index, z_nearest_distance
+
+    def append_state(self, row):
+        self.array = np.vstack((self.array, row))
+
+    def create_row(self, parent, z, cost=np.inf):
+        return np.hstack(([parent], [cost], z))
+    
+    def change_parent(self, nodeIndex, newParentIndex):
+        self.array[nodeIndex,0] = newParentIndex
+
+    def add_node(self, parent, z, cost=np.inf):
+        new_row = self.create_row(parent, z, cost)
+        self.append_state(new_row)
+
+
 class RRTStar:
     def __init__(self, world, limits, z_init=None):
         self.limits = limits
         self.world = world
         self.rsg = RandomStateGenerator(limits)
-
-        self.root = Tree(z_init, self.world)
+        if z_init is None:
+            z_init = self.rsg()
+        else:
+            z_init = z_init[::-1]
+        self.root = TreeArray(z_init)
 
     def init_tree(self, z_init):
-        self.root = Tree(z_init, self.world)
+        self.root = TreeArray(z_init, self.world)
+
+
+    def __call__(self, iterations = 1000):
+        for i in range(iterations):
+            z_new = self.rsg() 
+            while True:
+                if not is_in_obstacle(z_new, self.world): ## We generate a random state until we obtain one free of any obstacle
+                    break
+                z_new = self.rsg()
+
+            # z_nearest_index, distance2nearest = self.root.nearest(z_new)
+            z_neighbours_index, z_neighbor_distances, z_nearest_index, distance2nearest = self.root.neighborhood(z_new)
+            cost_new = distance2nearest + self.root.array[z_nearest_index, 1]
+            neighbors_costs = self.root.array[z_neighbours_index,1]
+            # best_parent_index = np.argmin(neighbors_costs)
+            # best_parent_cost = z_neighbor_distances[best_parent_index]
+            # best_parent = z_neighbours_index[best_parent_index]
+
+            potential_new_costs = cost_new + z_neighbor_distances
+            mask_neighbors = potential_new_costs < neighbors_costs
+            # index_neighbors_to_change = np.argwhere(mask_neighbors)
+            if mask_neighbors.any():
+                self.root.array[z_neighbours_index[mask_neighbors], 1] = potential_new_costs[mask_neighbors]
+                self.root.array[z_neighbours_index[mask_neighbors], 0] = i+1
+                # print(self.root.array.shape[0])
+
+            self.root.add_node(z_nearest_index, z_new, cost=cost_new)
+            
+            
+
+                
+
+
+def is_in_obstacle(z, world): #TODO function that determines if the node is inside an obstacle or not
+    val = world[int(z[0]), int(z[1])]
+    return val
+
+def euclidean_distance(z1, z2):
+    return
+
+
+    # Rad = r
+    # G(V,E) //Graph containing edges and vertices
+    # For itr in range(0…n)
+    #     Xnew = RandomPosition()
+    #     If Obstacle(Xnew) == True, try again
+    #     Xnearest = Nearest(G(V,E),Xnew)
+    #     Cost(Xnew) = Distance(Xnew,Xnearest)
+    #     Xbest,Xneighbors = findNeighbors(G(V,E),Xnew,Rad)
+    #     Link = Chain(Xnew,Xbest)
+    #     For x’ in Xneighbors
+    #         If Cost(Xnew) + Distance(Xnew,x’) < Cost(x’)
+    #             Cost(x’) = Cost(Xnew)+Distance(Xnew,x’)
+    #             Parent(x’) = Xnew
+    #             G += {Xnew,x’}
+    #     G += Link 
+    # Return G
+
+
 
 
     
-
-class TreeArray:
-    def __init__(self, limits):
-        self.limits = limits
-        self.rsg = RandomStateGenerator(limits)
-        self.array = np.array([self.create_row(0, self.rsg())])
-        
-    def nearest(self, z):
-        return np.argmin(np.sum((self.array[:,1:3] - z)**2, axis=1))
     
-    def neighborhood(self, z, n, d=2):
-        gamma = 10
-        l = gamma * (np.log(n)/n)**d
-        return np.argwhere(np.sum((self.array[:,1:3] - z)**2, axis=1) <= l)
-
-    def append_state(self, row):
-        self.array = np.vstack((self.array, row))
-
-    def create_row(self, parent, z):
-        return np.hstack(([parent], z))
-    
-    
-
     
 
         

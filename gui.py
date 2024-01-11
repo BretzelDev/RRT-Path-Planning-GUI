@@ -197,7 +197,11 @@ class Gui:
         print("## Compute path")
         start_time = time()
         # self.tree = generate_random_tree([[0,self.canvas_height],[0, self.canvas_width]], 1000)
-        self.tree = generate_random_tree_array([[0,self.canvas_height],[0, self.canvas_width]], self.tree_node_number)
+        # self.tree = generate_random_tree_array([[0,self.canvas_height],[0, self.canvas_width]], self.tree_node_number)
+        rrt = RRTStar(world=self.walls, limits=[[0,self.canvas_height],[0, self.canvas_width]], z_init=self.robot)
+        rrt(self.tree_node_number) 
+        self.tree = rrt.root
+        print(rrt.root)
         self.draw_canvas(new_tree=True)
         self.update_canvas_image()
         timelength = time() - start_time
