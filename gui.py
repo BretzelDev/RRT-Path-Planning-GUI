@@ -33,6 +33,7 @@ class Gui:
         self.robot = None
         self.goal = None
         self.tree = None
+        self.path = None
 
         ## Display object
         self.display = Display(height=self.canvas_height, width=self.canvas_width)
@@ -70,8 +71,8 @@ class Gui:
         ## Commandes clavier / souris
         self.setup_commands()
 
-    def draw_canvas(self, new_tree=False):
-        self.image_data = self.display(self.walls, self.robot, self.goal, self.tree, new_tree=new_tree)
+    def draw_canvas(self, new_tree=False, new_path=False):
+        self.image_data = self.display(self.walls, self.robot, self.goal, self.tree, new_tree=new_tree, path=self.path, new_path=new_path)
 
     def setup_commands(self):
         self.canvas.bind("<Button-1>", self.click_on_canvas) #<B1-Motion>
@@ -112,11 +113,11 @@ class Gui:
         goal_color_selector.set("orange")
 
         cursor_size_label = Label(self.side_panel, text="Wall size")
-        cursor_size_selector = ttk.Scale(self.side_panel, orient="horizontal", from_=0, to=30, command=lambda event: self.change_cursor_size(cursor_size_selector.get()), style='Tick.TScale')
+        cursor_size_selector = ttk.Scale(self.side_panel, orient="horizontal", from_=0, to=100, command=lambda event: self.change_cursor_size(cursor_size_selector.get()), style='Tick.TScale')
         cursor_size_selector.set(self.circle_radius)
 
         tree_number_label = Label(self.side_panel, textvariable=self.tree_number_string)
-        tree_number_selector = ttk.Scale(self.side_panel, orient="horizontal", from_=10, to=10000, command=lambda event: self.change_tree_number(tree_number_selector.get()), style='Tick.TScale')
+        tree_number_selector = ttk.Scale(self.side_panel, orient="horizontal", from_=10, to=20000, command=lambda event: self.change_tree_number(tree_number_selector.get()), style='Tick.TScale')
         tree_number_selector.set(self.tree_node_number)
 
         place_wall_button = ttk.Radiobutton(self.side_panel, text="Wall", variable=self.place_robot_var, value="wall", command=None)
@@ -201,8 +202,8 @@ class Gui:
         rrt = RRTStar(world=self.walls, limits=[[0,self.canvas_height],[0, self.canvas_width]], z_init=self.robot)
         rrt(self.tree_node_number) 
         self.tree = rrt.root
-        print(rrt.root)
-        self.draw_canvas(new_tree=True)
+        self.path = unpack_path(self.tree, self.goal)
+        self.draw_canvas(new_tree=True, new_path=True)
         self.update_canvas_image()
         timelength = time() - start_time
         print(f"Tree generated in {timelength:.3f}")

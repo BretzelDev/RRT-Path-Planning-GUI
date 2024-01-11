@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib
 from RRTstar import unpack_tree_array, unpack_tree_array_parallel
 
+
 rgb = {}
 for name, hex in matplotlib.colors.cnames.items():
     rgb[name] = np.array(matplotlib.colors.to_rgb(hex)) * 255
@@ -12,7 +13,8 @@ default_colors = {
     "wall": "black",
     "robot": "orange",
     "goal": "red",
-    "tree": "green"
+    "tree": "green",
+    "path": "red"
 }
 
 class Display:
@@ -27,16 +29,19 @@ class Display:
         self.robot_color = rgb[colorset["robot"]]
         self.goal_color = rgb[colorset["goal"]]
         self.tree_color = rgb[colorset["tree"]]
+        self.path_color = rgb[colorset["path"]]
+
 
         ## Sizes
         self.robot_size = 30
         self.goal_size = 30
 
         self.tree_mask = None
+        self.path_mask  = None
 
 
 
-    def __call__(self, walls=None, robot=None, goal=None, tree=None, new_tree=False):
+    def __call__(self, walls=None, robot=None, goal=None, tree=None, new_tree=False, path=None, new_path=False):
         img = np.zeros(self.shape, dtype=np.uint8)
 
         img[...,:] = self.background_color ## Background drawing
@@ -54,6 +59,12 @@ class Display:
                 self.tree_mask = self.draw_tree(tree)
             img[self.tree_mask[:,0], self.tree_mask[:,1]] = self.tree_color
 
+        if path is not None:
+            if new_path:
+                self.path_mask = self.draw_path(path)
+            img[self.path_mask[:,0], self.path_mask[:,1]] = self.path_color
+                
+
         return img
     
     def draw_tree(self, root, res_seg=100):
@@ -64,6 +75,12 @@ class Display:
         inter = np.int32(inter)
         return inter
 
+    def draw_path(self, path, res_seg=100):
+        T = np.linspace(0,1, res_seg).reshape((1,-1,1))
+        inter = T * path[:,0,:].reshape((-1, 1, 2)) + (1-T) * path[:,1,:].reshape((-1, 1, 2))
+        inter = inter.reshape((-1, 2))
+        inter = np.int32(inter)
+        return inter
 
     def get_background_color(self):
         return self.background_color

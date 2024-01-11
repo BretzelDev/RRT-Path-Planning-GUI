@@ -1,5 +1,7 @@
 import numpy as np
 import threading
+
+
 class Node:
     def __init__(self, z, world, parent = None):
         self.z = z ## State vector
@@ -89,6 +91,18 @@ def unpack_tree_array(root):
 
     return links
 
+def unpack_path(root, goal):
+    if goal is None:
+        return None
+    nearest_index, nearest_distance = root.nearest(goal[::-1])
+    index = nearest_index
+    path = []
+    while index != 0:
+        next_index = int(root.array[index, 0])
+        path.append([root.array[index, 2:4], root.array[next_index, 2:4]])
+        index = next_index
+    return np.array(path)
+
 def unpack_tree_array_parallel(root):
     N, D = root.array.shape
 
@@ -146,11 +160,10 @@ class RandomStateGenerator:
         assert (self.limits[:,1] > self.limits[:,0]).all()
 
 
+
 class TreeArray:
     def __init__(self, z_init):
-        # self.limits = limits
-        # self.rsg = RandomStateGenerator(limits)
-        self.array = np.array([self.create_row(0, z_init, cost=0)])
+        self.array = np.array([self.create_row(0, z_init, cost=0)], dtype=np.float16)
         
     def nearest(self, z):
         distances = np.sum((self.array[:,2:4] - z)**2, axis=1)
@@ -158,7 +171,7 @@ class TreeArray:
         return index, distances[index]
     
     def neighborhood(self, z, d=2):
-        gamma = 10
+        gamma = 100
         n = self.array.shape[0]
         l = gamma * (np.log(n)/n)**d
         l = np.inf
@@ -182,6 +195,7 @@ class TreeArray:
         self.append_state(new_row)
 
 
+
 class RRTStar:
     def __init__(self, world, limits, z_init=None):
         self.limits = limits
@@ -193,10 +207,6 @@ class RRTStar:
             z_init = z_init[::-1]
         self.root = TreeArray(z_init)
 
-    def init_tree(self, z_init):
-        self.root = TreeArray(z_init, self.world)
-
-
     def __call__(self, iterations = 1000):
         for i in range(iterations):
             z_new = self.rsg() 
@@ -205,25 +215,21 @@ class RRTStar:
                     break
                 z_new = self.rsg()
 
-            # z_nearest_index, distance2nearest = self.root.nearest(z_new)
             z_neighbours_index, z_neighbor_distances, z_nearest_index, distance2nearest = self.root.neighborhood(z_new)
             cost_new = distance2nearest + self.root.array[z_nearest_index, 1]
             neighbors_costs = self.root.array[z_neighbours_index,1]
-            # best_parent_index = np.argmin(neighbors_costs)
-            # best_parent_cost = z_neighbor_distances[best_parent_index]
-            # best_parent = z_neighbours_index[best_parent_index]
 
             potential_new_costs = cost_new + z_neighbor_distances
             mask_neighbors = potential_new_costs < neighbors_costs
-            # index_neighbors_to_change = np.argwhere(mask_neighbors)
             if mask_neighbors.any():
                 self.root.array[z_neighbours_index[mask_neighbors], 1] = potential_new_costs[mask_neighbors]
                 self.root.array[z_neighbours_index[mask_neighbors], 0] = i+1
-                # print(self.root.array.shape[0])
 
             self.root.add_node(z_nearest_index, z_new, cost=cost_new)
             
-            
+# def RRTStarFunction(world, limits, z_init=None, iterations=1000):
+
+
 
                 
 
