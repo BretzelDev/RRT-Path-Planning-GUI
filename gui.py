@@ -37,6 +37,7 @@ class Gui:
 
         ## Display object
         self.display = Display(height=self.canvas_height, width=self.canvas_width)
+        self.tree_display_var = BooleanVar(value="True")
 
         ## Top menu
         self.top_menu = Menu(root)
@@ -72,7 +73,7 @@ class Gui:
         self.setup_commands()
 
     def draw_canvas(self, new_tree=False, new_path=False):
-        self.image_data = self.display(self.walls, self.robot, self.goal, self.tree, new_tree=new_tree, path=self.path, new_path=new_path)
+        self.image_data = self.display(self.walls, self.robot, self.goal, self.tree if self.tree_display_var.get() else None, new_tree=new_tree, path=self.path, new_path=new_path)
 
     def setup_commands(self):
         self.canvas.bind("<Button-1>", self.click_on_canvas) #<B1-Motion>
@@ -124,6 +125,8 @@ class Gui:
         place_robot_button = ttk.Radiobutton(self.side_panel, text="Robot", variable=self.place_robot_var, value="robot", command=None)
         place_goal_button = ttk.Radiobutton(self.side_panel, text="Goal", variable=self.place_robot_var, value="goal", command=None)
 
+        toggle_tree_display = ttk.Checkbutton(self.side_panel, text='Display Tree', style='Toggle.TButton', variable=self.tree_display_var)
+
         placement_matrix = [[compute_button],
                             [reset_button],
                             [wall_color_selector, wall_color_label],
@@ -135,7 +138,8 @@ class Gui:
                             [place_wall_button, place_robot_button],
                             [place_goal_button],
                             [tree_number_label],
-                            [tree_number_selector]
+                            [tree_number_selector],
+                            [toggle_tree_display]
                             ]
         
         ## Widgets placement
