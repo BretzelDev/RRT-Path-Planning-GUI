@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib
 from RRTstar import unpack_tree_array, unpack_tree_array_parallel
+import cv2
 
 
 rgb = {}
@@ -62,6 +63,10 @@ class Display:
         if path is not None:
             if new_path:
                 self.path_mask = self.draw_path(path)
+                mask = np.zeros(self.shape, dtype=np.uint8)
+                mask[self.path_mask[:,0], self.path_mask[:,1]] = 255
+                mask = cv2.dilate(mask, np.ones((3,3)))
+                self.path_mask = np.argwhere(mask)
             img[self.path_mask[:,0], self.path_mask[:,1]] = self.path_color
                 
 

@@ -1,5 +1,6 @@
 import numpy as np
 import threading
+from numba import njit, jit
 
 
 class Node:
@@ -159,7 +160,40 @@ class RandomStateGenerator:
     def check_limits(self):
         assert (self.limits[:,1] > self.limits[:,0]).all()
 
+# @njit
+# def intersects_walls(world, array, z):
+#         T = np.linspace(0,1, 100).reshape((1,-1,1))
+#         reshaped_array = array[:,2:4].reshape((-1, 1, 2))
+#         reshaped_z = z.reshape((-1, 1, 2))
+#         inter = T * reshaped_array + (1-T) * reshaped_z
+#         inter = inter.reshape((-1, 2))
+#         inter = np.int32(inter)
+#         mask_collisions = world[inter[:,0], inter[:,1]]
+#         mask_collisions = mask_collisions.reshape((array.shape[0], -1))
+#         mask_collisions = mask_collisions.any(axis=1)
+#         return mask_collisions
+        
+# @jit(nopython=True)
+# def intersects_walls(world, array, z):
+#     T = np.linspace(0, 1, 100)
+    
+#     result = np.empty(array.shape[0], dtype=np.bool_)
+    
+#     for i in range(array.shape[0]):
+#         inter = T * array[i, 2:4] + (1 - T) * z[i]
+#         inter = inter.astype(np.int32)
 
+#         mask_collision = False
+#         for j in range(inter.shape[0]):
+#             x, y = inter[j]
+#             if 0 <= x < world.shape[0] and 0 <= y < world.shape[1]:
+#                 if world[x, y]:
+#                     mask_collision = True
+#                     break
+
+#         result[i] = mask_collision
+
+#     return result
 
 class TreeArray:
     def __init__(self, z_init):
@@ -177,20 +211,16 @@ class TreeArray:
         l = np.inf
         distances = np.sum((self.array[:,2:4] - z)**2, axis=1) ##TODO intégrer la condition sur les obstacles
 
-        res_seg = 100
+        res_seg = 20
         T = np.linspace(0,1, res_seg).reshape((1,-1,1))
         inter = T * self.array[:,2:4].reshape((-1, 1, 2)) + (1-T) * z.reshape((-1, 1, 2))
         inter = inter.reshape((-1, 2))
-        inter = np.int32(inter)
-
+        inter = np.int16(inter)
         mask_collisions = world[inter[:,0], inter[:,1]]
-        # print(mask_collisions.shape)
         mask_collisions = mask_collisions.reshape((self.array.shape[0], -1))
-        # print(mask_collisions.shape)
         mask_collisions = mask_collisions.any(axis=1)
-        # print("######")
-        # print((distances <= l).shape)
-        # print(mask_collisions.shape)
+        # mask_collisions = intersects_walls(world, self.array, z)
+
         index = np.argwhere((distances <= l) & ~mask_collisions)
         if index.shape[0] == 0:
             return None, None, None, None
@@ -235,7 +265,7 @@ class RRTStar:
             z_new = self.rsg() 
             while True:
                 z_neighbours_index, z_neighbor_distances, z_nearest_index, distance2nearest = self.root.neighborhood(z_new, self.world)
-                if (not is_in_obstacle(z_new, self.world)) and (z_neighbours_index is not None): ## We generate a random state until we obtain one free of any obstacle
+                if (z_neighbours_index is not None): ## We generate a random state until we obtain one free of any obstacle
                     break
                 z_new = self.rsg()
 
