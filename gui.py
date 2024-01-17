@@ -7,6 +7,9 @@ import numpy as np
 from display import Display
 from RRTstar import *
 from time import time
+from rrstar import rrtstar
+import numba as nb
+import cv2
 
 
 
@@ -37,11 +40,23 @@ class Gui:
 
         ## Display object
         self.display = Display(height=self.canvas_height, width=self.canvas_width)
+        self.tree_display_var = BooleanVar(value="True")
+        self.path_display_var = BooleanVar(value="True")
+
 
         ## Top menu
         self.top_menu = Menu(root)
         root.config(menu = self.top_menu)
-        self.top_menu.add_command(label = "Save", command= self.save) 
+        # Create a "File" menu
+        file_menu = Menu(self.top_menu, tearoff=0)
+        self.top_menu.add_cascade(label="File", menu=file_menu)
+
+        # Add commands to the "File" menu
+        file_menu.add_command(label="Save view", command=self.save_view)
+        file_menu.add_command(label="Save map", command=self.save_map)
+        file_menu.add_command(label="Import map", command=self.import_map)
+        
+        # self.top_menu.add_command(label = "Save", command= self.save) 
         self.top_menu.add_command(label = "Simulate", command= self.simulate_progress) 
         self.top_menu.add_command(label = "Exit", command= root.destroy)
 
@@ -72,13 +87,17 @@ class Gui:
         self.setup_commands()
 
     def draw_canvas(self, new_tree=False, new_path=False):
-        self.image_data = self.display(self.walls, self.robot, self.goal, self.tree, new_tree=new_tree, path=self.path, new_path=new_path)
+        self.image_data = self.display(self.walls, self.robot, self.goal, self.tree if self.tree_display_var.get() else None, new_tree=new_tree, path=self.path if self.path_display_var.get() else None, new_path=new_path)
 
     def setup_commands(self):
         self.canvas.bind("<Button-1>", self.click_on_canvas) #<B1-Motion>
         self.canvas.bind("<B1-Motion>", self.click_on_canvas) #<B1-Motion>
         self.canvas.bind("<Motion>", self.on_enter_canvas) ## Cursor
         self.canvas.bind("<Leave>", self.on_leave_canvas)
+
+        ## Right click on canvas
+        self.canvas.bind("<Button-3>", self.right_click_on_canvas) #<B1-Motion>
+        self.canvas.bind("<B3-Motion>", self.right_click_on_canvas) #<B1-Motion>
 
 
     def create_photo_image(self):
@@ -124,6 +143,10 @@ class Gui:
         place_robot_button = ttk.Radiobutton(self.side_panel, text="Robot", variable=self.place_robot_var, value="robot", command=None)
         place_goal_button = ttk.Radiobutton(self.side_panel, text="Goal", variable=self.place_robot_var, value="goal", command=None)
 
+        toggle_tree_display = ttk.Checkbutton(self.side_panel, text='Display Tree', style='Toggle.TButton', variable=self.tree_display_var, command=self.basic_display)
+        toggle_path_display = ttk.Checkbutton(self.side_panel, text='Display Path', style='Toggle.TButton', variable=self.path_display_var, command=self.basic_display)
+
+
         placement_matrix = [[compute_button],
                             [reset_button],
                             [wall_color_selector, wall_color_label],
@@ -135,7 +158,8 @@ class Gui:
                             [place_wall_button, place_robot_button],
                             [place_goal_button],
                             [tree_number_label],
-                            [tree_number_selector]
+                            [tree_number_selector],
+                            [toggle_tree_display, toggle_path_display]
                             ]
         
         ## Widgets placement
@@ -159,6 +183,12 @@ class Gui:
             self.add_robot(x, y)
         elif selection == "goal":
             self.add_goal(x, y)
+
+    def right_click_on_canvas(self, event):
+        x, y = event.x, event.y
+        selection = self.place_robot_var.get()
+        if selection == "wall":
+            self.remove_obstacle(x, y)
         
 
             
@@ -166,6 +196,12 @@ class Gui:
         square_size = int(self.circle_radius)
         self.log.set(f"## Add obstacle en {x,y}")
         self.walls[y-square_size//2:y+square_size//2+1, x-square_size//2:x+square_size//2+1] = True
+        self.draw_canvas()
+        self.update_canvas_image()
+
+    def remove_obstacle(self, x, y):
+        square_size = int(self.circle_radius)
+        self.walls[y-square_size//2:y+square_size//2+1, x-square_size//2:x+square_size//2+1] = False
         self.draw_canvas()
         self.update_canvas_image()
 
@@ -199,10 +235,13 @@ class Gui:
         start_time = time()
         # self.tree = generate_random_tree([[0,self.canvas_height],[0, self.canvas_width]], 1000)
         # self.tree = generate_random_tree_array([[0,self.canvas_height],[0, self.canvas_width]], self.tree_node_number)
-        rrt = RRTStar(world=self.walls, limits=[[0,self.canvas_height],[0, self.canvas_width]], z_init=self.robot)
-        rrt(self.tree_node_number) 
-        self.tree = rrt.root
-        self.path = unpack_path(self.tree, self.goal)
+        # rrt = RRTStar(world=self.walls, limits=[[0,self.canvas_height],[0, self.canvas_width]], z_init=self.robot)
+        # rrt(self.tree_node_number) 
+        # self.tree = rrt.root
+        self.tree = rrtstar(iterations=self.tree_node_number, limits=nb.typed.List([[0,self.canvas_height],[0, self.canvas_width]]), world=self.walls, robot=self.robot, goal=self.goal)
+        print(self.tree)
+        self.path = unpack_path_numba(self.tree, self.goal)
+        print(self.path)
         self.draw_canvas(new_tree=True, new_path=True)
         self.update_canvas_image()
         timelength = time() - start_time
@@ -213,23 +252,84 @@ class Gui:
         self.image_data[...,:] = self.display.get_background_color()
         self.walls *= False
         self.robot = None
+        self.goal = None
+        self.tree = None
+        self.path = None
         self.update_canvas_image()
 
-    def save(self):
+    def basic_display(self):
+        self.draw_canvas()
+        self.update_canvas_image()
+
+    def save(self, image, init_dir="./imgs/"):
         print("## Save")
-        file_path = filedialog.asksaveasfilename(defaultextension=".png",
+        window = tk.Tk()
+        window.style = ttk.Style(window)
+        window.tk.call("source", "azure.tcl")
+        window.tk.call("set_theme", "light")
+        window.title("Save")
+        window.withdraw()
+
+        file_path = filedialog.asksaveasfilename(parent=window, defaultextension=".png",
                                                    filetypes=[("PNG files", "*.png"),
                                                               ("JPEG files", "*.jpg;*.jpeg"),
-                                                              ("All files", "*.*")])
+                                                              ("All files", "*.*")],
+                                                    initialdir=init_dir)
+        window.destroy()
         if file_path:
             # Convert the numpy array to a PIL Image
-            pil_image = Image.fromarray(self.image_data)
+            pil_image = Image.fromarray(image)
 
             # Save the PIL Image to the specified file path
             pil_image.save(file_path)
             self.log.set(f"Saved image to {file_path}")
             self.log.set("## Saved")
+
+    def save_view(self):
+        self.save(self.image_data)
+    def save_map(self):
+        img = np.zeros(self.walls.shape, dtype=np.uint8)
+        img[self.walls] = 255
+        self.save(img, init_dir="./maps/")
+
+    def import_map(self):
+        window = tk.Tk()
+        window.style = ttk.Style(window)
+        window.tk.call("source", "azure.tcl")
+        window.tk.call("set_theme", "light")
+        window.title("Save")
+        window.withdraw()
+
+        file_path = filedialog.askopenfilename(parent=window,
+                                                   filetypes=[("All files", "*.*"),
+                                                              ("PNG files", "*.png"),
+                                                              ("JPEG files", "*.jpg;*.jpeg")
+                                                              ],
+                                                    initialdir="./maps/")
+        window.destroy()
+        if file_path:
+            image = Image.open(file_path)
+            if np.array(image).shape[:2] != (self.canvas_height, self.canvas_width):
+                print("resized")
+                image = cv2.resize(np.array(image), (self.canvas_width, self.canvas_height))
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                image = ~image
+
+            self.reset()
+            self.walls = np.array(image > 125).astype(bool)
     
+            self.goal = None
+            self.tree = None
+            self.path = None
+            self.robot = None
+
+            self.draw_canvas()
+            self.update_canvas_image()
+
+            self.log.set(f"Imported image from {file_path}")
+            self.log.set("## Imported")
+
+
     def simulate_progress(self):
         self.log.set("Simulation in progress ...")
         for i in range(101):

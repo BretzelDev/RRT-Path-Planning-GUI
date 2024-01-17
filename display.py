@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib
 from RRTstar import unpack_tree_array, unpack_tree_array_parallel
+import cv2
 
 
 rgb = {}
@@ -62,12 +63,16 @@ class Display:
         if path is not None:
             if new_path:
                 self.path_mask = self.draw_path(path)
+                mask = np.zeros(self.shape, dtype=np.uint8)
+                mask[self.path_mask[:,0], self.path_mask[:,1]] = 255
+                mask = cv2.dilate(mask, np.ones((3,3)))
+                self.path_mask = np.argwhere(mask)
             img[self.path_mask[:,0], self.path_mask[:,1]] = self.path_color
                 
 
         return img
     
-    def draw_tree(self, root, res_seg=100):
+    def draw_tree(self, root, res_seg=300):
         tree = unpack_tree_array(root)#np.array(root.draw_edges())
         T = np.linspace(0,1, res_seg).reshape((1,-1,1))
         inter = T * tree[:,0,:].reshape((-1, 1, 2)) + (1-T) * tree[:,1,:].reshape((-1, 1, 2))
@@ -75,8 +80,9 @@ class Display:
         inter = np.int32(inter)
         return inter
 
-    def draw_path(self, path, res_seg=100):
+    def draw_path(self, path, res_seg=300):
         T = np.linspace(0,1, res_seg).reshape((1,-1,1))
+        print(path.shape)
         inter = T * path[:,0,:].reshape((-1, 1, 2)) + (1-T) * path[:,1,:].reshape((-1, 1, 2))
         inter = inter.reshape((-1, 2))
         inter = np.int32(inter)

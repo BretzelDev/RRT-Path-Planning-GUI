@@ -1,5 +1,6 @@
 import numpy as np
 import threading
+from numba import njit, jit
 
 
 class Node:
@@ -80,14 +81,14 @@ def generate_random_tree_array(limits, N=100):
     return root
         
 def unpack_tree_array(root):
-    N, D = root.array.shape
+    N, D = root.shape
 
     print("## " ,N, D)
     
     links = np.zeros((N-1, 2, D-2))
     for i in range(1, N):
-        links[i-1, 0] = root.array[i,2:]
-        links[i-1,1] = root.array[int(root.array[i,0]), 2:]
+        links[i-1, 0] = root[i,2:]
+        links[i-1,1] = root[int(root[i,0]), 2:]
 
     return links
 
@@ -102,6 +103,22 @@ def unpack_path(root, goal):
         path.append([root.array[index, 2:4], root.array[next_index, 2:4]])
         index = next_index
     return np.array(path)
+
+def unpack_path_numba(tree, goal):
+    if goal is None:
+        return None
+    nearest_index = np.argmin(np.linalg.norm(tree[:,2:4].reshape((-1,2)) - np.array(goal[::-1]).reshape((1,2)), axis=1))
+    print("nearest index: ", nearest_index)
+    # print(np.linalg.norm(tree[:,2:4].reshape((-1,2)) - np.array(goal[::-1]).reshape((1,2))))
+
+    index = nearest_index
+    path = []
+    while index != 0:
+        next_index = int(tree[index, 0])
+        path.append([tree[index, 2:4], tree[next_index, 2:4]])
+        index = next_index
+    return np.array(path)
+
 
 def unpack_tree_array_parallel(root):
     N, D = root.array.shape
@@ -159,7 +176,40 @@ class RandomStateGenerator:
     def check_limits(self):
         assert (self.limits[:,1] > self.limits[:,0]).all()
 
+# @njit
+# def intersects_walls(world, array, z):
+#         T = np.linspace(0,1, 100).reshape((1,-1,1))
+#         reshaped_array = array[:,2:4].reshape((-1, 1, 2))
+#         reshaped_z = z.reshape((-1, 1, 2))
+#         inter = T * reshaped_array + (1-T) * reshaped_z
+#         inter = inter.reshape((-1, 2))
+#         inter = np.int32(inter)
+#         mask_collisions = world[inter[:,0], inter[:,1]]
+#         mask_collisions = mask_collisions.reshape((array.shape[0], -1))
+#         mask_collisions = mask_collisions.any(axis=1)
+#         return mask_collisions
+        
+# @jit(nopython=True)
+# def intersects_walls(world, array, z):
+#     T = np.linspace(0, 1, 100)
+    
+#     result = np.empty(array.shape[0], dtype=np.bool_)
+    
+#     for i in range(array.shape[0]):
+#         inter = T * array[i, 2:4] + (1 - T) * z[i]
+#         inter = inter.astype(np.int32)
 
+#         mask_collision = False
+#         for j in range(inter.shape[0]):
+#             x, y = inter[j]
+#             if 0 <= x < world.shape[0] and 0 <= y < world.shape[1]:
+#                 if world[x, y]:
+#                     mask_collision = True
+#                     break
+
+#         result[i] = mask_collision
+
+#     return result
 
 class TreeArray:
     def __init__(self, z_init):
@@ -170,22 +220,41 @@ class TreeArray:
         index = np.argmin(distances)
         return index, distances[index]
     
-    def neighborhood(self, z, d=2):
+    def neighborhood(self, z, world, d=2):
         gamma = 100
         n = self.array.shape[0]
-        l = gamma * (np.log(n)/n)**d
+        l = gamma * (np.log(n)/n)**d                                                                                                       
         l = np.inf
-        distances = np.sum((self.array[:,2:4] - z)**2, axis=1)
-        z_nearest_index = np.argmin(distances)
-        z_nearest_distance = distances[z_nearest_index]
-        index = np.argwhere(distances <= l)
-        return index, distances[index], z_nearest_index, z_nearest_distance
+        distances = np.sum((self.array[:,2:4] - z)**2, axis=1) ##TODO intégrer la condition sur les obstacles
+
+        res_seg = 20
+        T = np.linspace(0,1, res_seg).reshape((1,-1,1))
+        inter = T * self.array[:,2:4].reshape((-1, 1, 2)) + (1-T) * z.reshape((-1, 1, 2))
+        inter = inter.reshape((-1, 2))
+        inter = np.int16(inter)
+        mask_collisions = world[inter[:,0], inter[:,1]]
+        mask_collisions = mask_collisions.reshape((self.array.shape[0], -1))
+        mask_collisions = mask_collisions.any(axis=1)
+        # mask_collisions = intersects_walls(world, self.array, z)
+
+        index = np.argwhere((distances <= l) & ~mask_collisions)
+        if index.shape[0] == 0:
+            return None, None, None, None
+        # print(distances)
+        distances = distances[index]
+        nearest_local_index = np.argmin(distances)
+        nearest_global_index = index[nearest_local_index]
+        nearest_distance = distances[nearest_local_index]
+
+        # z_nearest_index = np.argmin(distances)
+        # z_nearest_distance = distances[z_nearest_index]
+        return index, distances, nearest_global_index, nearest_distance
 
     def append_state(self, row):
         self.array = np.vstack((self.array, row))
 
     def create_row(self, parent, z, cost=np.inf):
-        return np.hstack(([parent], [cost], z))
+        return np.hstack(([parent], [int(cost)], z))
     
     def change_parent(self, nodeIndex, newParentIndex):
         self.array[nodeIndex,0] = newParentIndex
@@ -211,11 +280,11 @@ class RRTStar:
         for i in range(iterations):
             z_new = self.rsg() 
             while True:
-                if not is_in_obstacle(z_new, self.world): ## We generate a random state until we obtain one free of any obstacle
+                z_neighbours_index, z_neighbor_distances, z_nearest_index, distance2nearest = self.root.neighborhood(z_new, self.world)
+                if (z_neighbours_index is not None): ## We generate a random state until we obtain one free of any obstacle
                     break
                 z_new = self.rsg()
 
-            z_neighbours_index, z_neighbor_distances, z_nearest_index, distance2nearest = self.root.neighborhood(z_new)
             cost_new = distance2nearest + self.root.array[z_nearest_index, 1]
             neighbors_costs = self.root.array[z_neighbours_index,1]
 
@@ -225,7 +294,7 @@ class RRTStar:
                 self.root.array[z_neighbours_index[mask_neighbors], 1] = potential_new_costs[mask_neighbors]
                 self.root.array[z_neighbours_index[mask_neighbors], 0] = i+1
 
-            self.root.add_node(z_nearest_index, z_new, cost=cost_new)
+            self.root.add_node(int(z_nearest_index), z_new, cost=cost_new)
             
 # def RRTStarFunction(world, limits, z_init=None, iterations=1000):
 
