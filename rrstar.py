@@ -1,86 +1,148 @@
 import numpy as np
-from numba import jit, float64, int32
+from numba import jit, float64, int32, njit
+import numba as nb
+from time import time
+from math import sqrt
 
-@jit(nopython=True)
-def euclidean_distance(p1, p2):
-    p1_float64 = np.array([p1[0], p1[1]], dtype=np.float64)
-    p2_float64 = np.array([p2[0], p2[1]], dtype=np.float64)
-    return np.linalg.norm(p1_float64 - p2_float64)
 
-@jit(nopython=True)
-def nearest_neighbor(tree, target_point):
-    min_distance = np.inf
-    nearest_node = None
 
-    for node in tree:
-        distance = euclidean_distance(node, target_point)
-        if distance < min_distance:
-            min_distance = distance
-            nearest_node = node
+@njit
+def sample(limits):
+    a, b = np.random.random(2)
+    return np.array([limits[0][0] + (limits[0][1] - limits[0][0]) * a, limits[1][0] + (limits[1][1] - limits[1][0]) * b])
 
-    return nearest_node
+@njit
+def neighborhood(z, tree: np.ndarray, world: np.ndarray):
+    l = np.inf
+    distances = []
+    indices = []
+    N = tree.shape[0]
+    for i in range(N):
+        distance = sqrt((tree[i, 2] - z[1])**2 + (tree[i,3] - z[1])**2)
+        if distance <= l:
+            distances.append(distance)
+            indices.append(i)
 
-@jit(nopython=True)
-def steer(from_point, to_point, max_distance):
-    if to_point is None:
-        return from_point  # If no specific target, stay at the current point
+    return distances
 
-    to_point_array = np.asarray(to_point)
-    from_point_array = np.asarray(from_point)
-    direction = to_point_array - from_point_array
-    distance = np.linalg.norm(direction)
+@njit
+def rrtstar(iterations: int, limits, world: np.ndarray, robot: tuple, goal: tuple):
+    tree = np.zeros((iterations, len(limits[0])+2), dtype=np.float32)
+    tree[0, 2:] = robot[::-1]
+
+    for iteration in range(iterations-1):
+        ## Sample
+        # a, b = np.random.random(2)
+        # z_new = np.array([limits[0][0] + (limits[0][1] - limits[0][0]) * a, limits[1][0] + (limits[1][1] - limits[1][0]) * b])
+        
+        ## Neighborhood computation
+        l = np.inf
+        distances = []
+        indices = []
+        res_seg = 100
+        T = np.linspace(0,1, res_seg)
+        while not indices:
+            ## new Sample
+            a, b = np.random.random(2)
+            z_new = np.array([limits[0][0] + (limits[0][1] - limits[0][0]) * a, limits[1][0] + (limits[1][1] - limits[1][0]) * b])
+            dist_min = np.inf
+            ind_min = 0
+            for i in range(iteration+1):
+                distance = sqrt((tree[i, 2] - z_new[0])**2 + (tree[i,3] - z_new[1])**2)
+                if distance <= l:
+                    valid_link = True
+                    for t in T:
+                        # pos = np.asarray(t * tree[i,2:4] + (1-t) * z_new, dtype=int32)
+                        posx = int32(t*tree[i,2]+(1-t)*z_new[0])
+                        posy = int32(t*tree[i,3]+(1-t)*z_new[1])
+
+                        if world[posx, posy]:
+                            valid_link = False
+                            break
+                    if valid_link:
+                        distances.append(distance)
+                        indices.append(i)
+                        if distance <= dist_min:
+                            dist_min = distance
+                            ind_min = i
+        ## End of neighborhood computation
+                            
+        
+        nb = len(indices)
+        cost_min = np.inf
+        ind_min = 0
+        for i in range(nb):
+            potential_cost = distances[i] + tree[indices[i], 1]
+            if potential_cost < cost_min:
+                cost_min = potential_cost
+                ind_min = indices[i]
+        tree[iteration+1] = np.array([ind_min, cost_min] + list(z_new))
+        # print(iteration + 1)
+        
+        for i in range(nb):
+            if indices[i] != ind_min and distances[i] + cost_min < tree[indices[i], 1]:
+                tree[indices[i], 1] = distances[i] + cost_min
+                tree[indices[i], 0] = iteration + 1
+            # else:
+            #     print("test")
+
+            
+        # cost_new = dist_min + tree[ind_min, 1]
+        # nb = len(indices)
+        # for i in range(nb):
+        #     potential_new_cost = cost_new + distances[i]
+        #     if potential_new_cost < tree[indices[i], 1]:
+        #         tree[indices[i],1] = potential_new_cost
+        #         tree[indices[i],0] = iteration + 1
+        # tree[iteration+1] = np.array([ind_min, cost_new] + list(z_new))
+
     
-    if distance <= max_distance:
-        return to_point_array  # If the target is within max_distance, go directly to it
-    else:
-        normalized_direction = direction / distance
-        return (from_point + max_distance) * normalized_direction
-
-@jit(nopython=True)
-def is_collision_free(world, p1, p2):
-    # Check if the line segment between p1 and p2 is collision-free
-    step_size = 0.1
-    t = np.arange(0, 1, step_size)
-    path = p1 + t[:, None] * (p2 - p1)
-    
-    for point in path:
-        x, y = point.astype(int)
-        if not (0 <= x < world.shape[0] and 0 <= y < world.shape[1] and not world[x, y]):
-            return False
-    
-    return True
-
-@jit(nopython=True)
-def rewire(tree, new_point, max_distance):
-    for i in range(len(tree)):
-        node = tree[i]
-        if euclidean_distance(new_point, node) < max_distance:
-            if is_collision_free(tree, new_point, node):
-                tree[i] = new_point
-
-@jit(nopython=True)
-def rrt_star(world, start, goal, max_iterations=1000, max_distance=10.0):
-    tree = [start]
-
-    for _ in range(max_iterations):
-        random_point = np.random.rand(2) * np.array(world.shape)
-        nearest_node = nearest_neighbor(tree, random_point)
-        new_point = steer(nearest_node, random_point, max_distance)
-
-        if is_collision_free(world, nearest_node, new_point):
-            near_nodes = [node for node in tree if euclidean_distance(node, new_point) < max_distance]
-            cost = np.argmin([tree.index(node) + euclidean_distance(node, new_point) for node in near_nodes])
-
-            tree.append(new_point)
-
-            for node in near_nodes:
-                if tree.index(node) + euclidean_distance(node, new_point) < tree.index(new_point):
-                    if is_collision_free(world, node, new_point):
-                        tree[-1] = node
-
-            if cost < len(tree):
-                tree[-1] = near_nodes[cost]
-
-                rewire(tree, new_point, max_distance)
-
     return tree
+
+
+if __name__ == "__main__":
+    N = 100000
+    limits = nb.typed.List([[0, 300], [0, 500]])
+    world = np.random.randint(0,2, size=(300, 600), dtype=bool) * 0
+    robot = (123, 456)
+    goal = (0, 0)
+    iterations = 10000
+
+    start = time()
+    test = rrtstar(N, limits, world, robot, goal)
+    length = time() - start
+    print("####### TEST FUNCTION #######")
+    print(test)
+    print(f"Result obtained in {length:.2}")
+
+    start = time()
+    test = rrtstar(N, limits, world, robot, goal)
+    length = time() - start
+    print("####### TEST FUNCTION #######")
+    print(test)
+    print(f"Result obtained in {length:.2}")
+
+
+    # array = np.random.random((N, 4))
+    # start = time()
+    # test = neighborhood(robot, array, world) #np.zeros((N, len(limits[0])), dtype=bool)
+    # length = time() - start
+    # print("####### TEST NEIGHBORHOOD #######")
+    # print(test)
+    # print(f"Result obtained in {length:.2}")
+
+
+
+
+    # array = np.random.random((N, 4))
+    # start = time()
+    # test = distances = np.sum((array[:,2:4] - robot)**2, axis=1)
+    # length = time() - start
+
+
+    # print("####### TEST NEIGHBORHOOD #######")
+    # print(test)
+    # print(f"Result obtained in {length:.2}")
+
+
+

@@ -81,14 +81,14 @@ def generate_random_tree_array(limits, N=100):
     return root
         
 def unpack_tree_array(root):
-    N, D = root.array.shape
+    N, D = root.shape
 
     print("## " ,N, D)
     
     links = np.zeros((N-1, 2, D-2))
     for i in range(1, N):
-        links[i-1, 0] = root.array[i,2:]
-        links[i-1,1] = root.array[int(root.array[i,0]), 2:]
+        links[i-1, 0] = root[i,2:]
+        links[i-1,1] = root[int(root[i,0]), 2:]
 
     return links
 
@@ -103,6 +103,22 @@ def unpack_path(root, goal):
         path.append([root.array[index, 2:4], root.array[next_index, 2:4]])
         index = next_index
     return np.array(path)
+
+def unpack_path_numba(tree, goal):
+    if goal is None:
+        return None
+    nearest_index = np.argmin(np.linalg.norm(tree[:,2:4].reshape((-1,2)) - np.array(goal[::-1]).reshape((1,2)), axis=1))
+    print("nearest index: ", nearest_index)
+    # print(np.linalg.norm(tree[:,2:4].reshape((-1,2)) - np.array(goal[::-1]).reshape((1,2))))
+
+    index = nearest_index
+    path = []
+    while index != 0:
+        next_index = int(tree[index, 0])
+        path.append([tree[index, 2:4], tree[next_index, 2:4]])
+        index = next_index
+    return np.array(path)
+
 
 def unpack_tree_array_parallel(root):
     N, D = root.array.shape

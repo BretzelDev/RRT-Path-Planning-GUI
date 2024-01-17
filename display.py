@@ -72,7 +72,7 @@ class Display:
 
         return img
     
-    def draw_tree(self, root, res_seg=100):
+    def draw_tree(self, root, res_seg=300):
         tree = unpack_tree_array(root)#np.array(root.draw_edges())
         T = np.linspace(0,1, res_seg).reshape((1,-1,1))
         inter = T * tree[:,0,:].reshape((-1, 1, 2)) + (1-T) * tree[:,1,:].reshape((-1, 1, 2))
@@ -80,8 +80,9 @@ class Display:
         inter = np.int32(inter)
         return inter
 
-    def draw_path(self, path, res_seg=100):
+    def draw_path(self, path, res_seg=300):
         T = np.linspace(0,1, res_seg).reshape((1,-1,1))
+        print(path.shape)
         inter = T * path[:,0,:].reshape((-1, 1, 2)) + (1-T) * path[:,1,:].reshape((-1, 1, 2))
         inter = inter.reshape((-1, 2))
         inter = np.int32(inter)

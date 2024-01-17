@@ -7,7 +7,9 @@ import numpy as np
 from display import Display
 from RRTstar import *
 from time import time
-from rrstar import rrt_star
+from rrstar import rrtstar
+import numba as nb
+import cv2
 
 
 
@@ -233,11 +235,13 @@ class Gui:
         start_time = time()
         # self.tree = generate_random_tree([[0,self.canvas_height],[0, self.canvas_width]], 1000)
         # self.tree = generate_random_tree_array([[0,self.canvas_height],[0, self.canvas_width]], self.tree_node_number)
-        rrt = RRTStar(world=self.walls, limits=[[0,self.canvas_height],[0, self.canvas_width]], z_init=self.robot)
-        rrt(self.tree_node_number) 
-        self.tree = rrt.root
-        # self.tree = rrt_star(self.walls, self.robot, self.goal)
-        self.path = unpack_path(self.tree, self.goal)
+        # rrt = RRTStar(world=self.walls, limits=[[0,self.canvas_height],[0, self.canvas_width]], z_init=self.robot)
+        # rrt(self.tree_node_number) 
+        # self.tree = rrt.root
+        self.tree = rrtstar(iterations=self.tree_node_number, limits=nb.typed.List([[0,self.canvas_height],[0, self.canvas_width]]), world=self.walls, robot=self.robot, goal=self.goal)
+        print(self.tree)
+        self.path = unpack_path_numba(self.tree, self.goal)
+        print(self.path)
         self.draw_canvas(new_tree=True, new_path=True)
         self.update_canvas_image()
         timelength = time() - start_time
@@ -296,15 +300,23 @@ class Gui:
         window.title("Save")
         window.withdraw()
 
-        file_path = filedialog.askopenfilename(parent=window, defaultextension=".png",
-                                                   filetypes=[("PNG files", "*.png"),
-                                                              ("JPEG files", "*.jpg;*.jpeg"),
-                                                              ("All files", "*.*")],
+        file_path = filedialog.askopenfilename(parent=window,
+                                                   filetypes=[("All files", "*.*"),
+                                                              ("PNG files", "*.png"),
+                                                              ("JPEG files", "*.jpg;*.jpeg")
+                                                              ],
                                                     initialdir="./maps/")
         window.destroy()
         if file_path:
             image = Image.open(file_path)
-            self.walls = np.array(image).astype(bool)
+            if np.array(image).shape[:2] != (self.canvas_height, self.canvas_width):
+                print("resized")
+                image = cv2.resize(np.array(image), (self.canvas_width, self.canvas_height))
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                image = ~image
+
+            self.reset()
+            self.walls = np.array(image > 125).astype(bool)
     
             self.goal = None
             self.tree = None
