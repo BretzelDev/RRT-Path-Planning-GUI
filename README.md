@@ -1,26 +1,48 @@
 # RRT-Path-Planning-GUI
 Small project aiming to develop a simple interface in Python using Tkinter to easily develop and test commonly used path planning algorithms such as RRT
 
+## Table of contents
+- [RRT-Path-Planning-GUI](#rrt-path-planning-gui)
+  - [Table of contents](#table-of-contents)
+  - [Current features](#current-features)
+  - [Installation](#installation)
+  - [State of the project](#state-of-the-project)
+  - [Exemples](#exemples)
+- [Credits](#credits)
+
+
 ## Current features
-- Drawing obstacles (walls) in the canvas
-- Adding the robot's initial position and destination
-- Generating a random tree to test the display (`generate path` button)
-- Saving the current canvas as a PNG image
-- Settings for the display (colors)
+- Drawing obstacles, initial positions and desired positions
+- Computing RRT* graph in 2D space
+- Computing the shortest path based on this graph
+- Saving current view
+- Saving current map
+- Importing maps
 
 ## Installation
-Although there isn't much to do play around with for now, you can clone the repository and see for yourself by launching the interface script:
+You can clone the repository and see for yourself by launching the interface script:
 
 ```bash
 python3 gui.py
 ```
 
 ## State of the project
-For now I am mainly focusing on building the interface the user can use to place obstacles, the robot and its destination goal on a map. No logic is yet implemented when it comes to path planning, the interface prototype is no more than a terrible Microsoft Paint ripoff.
+The interface can now compute trees and the shortest path (in the 2D space). I am now focusing on running the algorithm in a higher-dimension space to compute "shortest" paths according to specific constraints (not just the spatial distance) taking into account the cinematic models of non-holonomic vehicles.
 
-I am currently working on implementing tree graphs within the system, so that the interface can display them :
+![Exemple of the interface](imgs/InterfaceV2.png)
 
-![Exemple of the interface](imgs/gui_random_tree.png)
+
+## Exemples
+The following image of an urban map is imported into the program :
+![Exemple of the interface](imgs/urban_map_empty.png)
+
+The user places an initial position (orange) and a goal position (red). A tree is then computed starting from the initial position :
+
+![Exemple of the interface](imgs/urban_map_tree.png)
+
+Using the obtained tree, the program computes the shortest path to the destination :
+
+![Exemple of the interface](imgs/urban_map_path.png)
 
 
 # Credits

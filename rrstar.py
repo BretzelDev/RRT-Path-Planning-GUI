@@ -39,7 +39,7 @@ def rrtstar(iterations: int, limits, world: np.ndarray, robot: tuple, goal: tupl
         l = np.inf
         distances = []
         indices = []
-        res_seg = 100
+        res_seg = 200
         T = np.linspace(0,1, res_seg)
         while not indices:
             ## new Sample
